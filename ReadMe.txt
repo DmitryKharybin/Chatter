@@ -1,4 +1,1 @@
-These entities will NOT Cascade delete: 
-
-1.Post - Relationship with user
-2.GroupUser - Relationship with user , groups
+This part of the project is the api , it provide user data from the user data base & use Json Web Token authentication
