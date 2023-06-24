@@ -44,11 +44,7 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// !! Need more researching on the topic !!
 builder.Services.AddEndpointsApiExplorer();
-
-
-
 
 
 
@@ -66,57 +62,59 @@ option.UseLazyLoadingProxies().UseSqlServer(builder.Configuration.GetConnectionS
 var app = builder.Build();
 
 
-app.UseCors(x => x
-               .AllowAnyMethod()
-               .AllowAnyHeader()
-               .SetIsOriginAllowed(origin => true) // allow any origin
-               .AllowCredentials()); // allow credentials
 
-
-//Todo: Add SocialWebsiteDb//
+//During development , both data bases (user data & authentication) be deleted and recreated 
+//Cors are open to all during development
 
 if (app.Environment.IsDevelopment())
 {
+    using (var scope = app.Services.CreateScope())
+    {
+        var authenticationContext = scope.ServiceProvider.GetRequiredService<AuthenticationContext>();
 
+
+        authenticationContext.Database.EnsureDeleted();
+        authenticationContext.Database.EnsureCreated();
+
+        var userDataContext = scope.ServiceProvider.GetRequiredService<UserDataContext>();
+
+        userDataContext.Database.EnsureDeleted();
+        userDataContext.Database.EnsureCreated();
+    }
+
+
+
+    app.UseCors(x => x
+                   .AllowAnyMethod()
+                   .AllowAnyHeader()
+                   .SetIsOriginAllowed(origin => true) // allow any origin
+                   .AllowCredentials()); // allow credentials
 }
 
-
-
-
-using (var scope = app.Services.CreateScope())
+//In production , check that both data bases , exist
+else
 {
-    var authenticationContext = scope.ServiceProvider.GetRequiredService<AuthenticationContext>();
+    using (var scope = app.Services.CreateScope())
+    {
+        var authenticationContext = scope.ServiceProvider.GetRequiredService<AuthenticationContext>();
+        var userDataContext = scope.ServiceProvider.GetRequiredService<UserDataContext>();
+
+        authenticationContext.Database.EnsureCreated();
+        userDataContext.Database.EnsureCreated();
 
 
-    authenticationContext.Database.EnsureDeleted();
-    authenticationContext.Database.EnsureCreated();
+    }
 
-    var userDataContext = scope.ServiceProvider.GetRequiredService<UserDataContext>();
-
-    userDataContext.Database.EnsureDeleted();
-    userDataContext.Database.EnsureCreated();
-
-
+    //TODO: add cors policy for production
 }
+
 
 app.UseHttpsRedirection();
-
-//using (var scope = app.Services.CreateScope())
-//{
-//    var context = scope.ServiceProvider.GetRequiredService<UserDataContext>();
-//    context.Database.EnsureDeleted();
-//    context.Database.EnsureCreated();
-//}
-
 
 
 app.UseRouting();
 app.UseAuthentication();
-app.UseAuthorization(); //<< This needs to be between app.UseRouting(); and app.UseEndpoints();
-//app.UseEndpoints(endpoints =>
-//{
-//    endpoints.MapControllers();
-//});
+app.UseAuthorization();
 
 app.MapControllers();
 

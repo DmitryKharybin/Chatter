@@ -1,6 +1,7 @@
 ﻿
 namespace AuthenticationApi.Controllers
 {
+    //This controller is responsible for user : Registration, Login, Deletion .
     [Route("api/[controller]")]
     [ApiController]
     public class UserController : ControllerBase
@@ -9,24 +10,28 @@ namespace AuthenticationApi.Controllers
         private readonly RoleManager<IdentityRole> roleManager;
         private readonly SignInManager<IdentityUser> signInManager;
 
-        private readonly IConfiguration configuration;
-        IUserDataRepository userDataRepository;
+
+        private readonly IUserDataRepository userDataRepository;
+        private readonly IJwtService jwtService;
 
 
-        public UserController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, SignInManager<IdentityUser> signInManager, IConfiguration configuration, IUserDataRepository userDataRepository)
+
+        public UserController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager
+            , SignInManager<IdentityUser> signInManager,
+            IUserDataRepository userDataRepository, IJwtService jwtService)
         {
             this.userManager = userManager;
             this.roleManager = roleManager;
             this.signInManager = signInManager;
-            this.configuration = configuration;
             this.userDataRepository = userDataRepository;
+            this.jwtService = jwtService;
 
         }
-        
+
 
         /// <summary>
         /// Fetch The UserName & Password In case it exists, Send Them to Creation of JWT  
-        /// </summary>
+        ///// </summary>
         /// <param name="model"></param>
         /// <returns></returns>
         /// 
@@ -40,45 +45,31 @@ namespace AuthenticationApi.Controllers
             //Validation of the login model
             if (ModelState.IsValid)
             {
-                //Try to sign in
-                var loginRes = await signInManager.PasswordSignInAsync(model.UserName, model.Password, false, false);
-
-                if (loginRes.Succeeded)
-                {
-
+                    //First check if account name exist , then if it does , check if password match.
                     var user = await userManager.FindByNameAsync(model.UserName);
 
 
                     if (user != null && await userManager.CheckPasswordAsync(user, model.Password))
-                    //var res = await loginManager.PasswordSignInAsync(model.UserName, model.Password, false, false);
-                    //if (user != null && res.Succeeded)
+             
                     {
                         var userRoles = await userManager.GetRolesAsync(user);
 
                         var authClaims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.Name, user.UserName!),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                   new Claim("userId", user.Id)
-                };
+                         {
+                            new Claim(ClaimTypes.Name, user.UserName!),
+                            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                            new Claim("userId", user.Id)
+                         };
 
                         authClaims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-                        //Get instance of JWT 
-                        var token = GetToken(authClaims);
+                        //Generate a Json Web Token
+                        var token = jwtService.GenerateToken(authClaims);
 
 
-                        return Ok(new
-                        {
-                            //Write The JWT
-                            token = new JwtSecurityTokenHandler().WriteToken(token),
-                        });
-
+                        return Ok(new JwtSecurityTokenHandler().WriteToken(token));
 
                     }
-
-                }
-
             }
 
             return Unauthorized();
@@ -86,6 +77,9 @@ namespace AuthenticationApi.Controllers
         }
 
 
+
+        //Register a user with provided input information 
+        
         [HttpPost]
         [Route("[action]")]
         public async Task<IActionResult> RegisterUser([FromBody] RegisterModel model)
@@ -226,6 +220,8 @@ namespace AuthenticationApi.Controllers
         }
 
 
+
+
         //Find user By Id 
         [HttpDelete]
         [Route("[action]/{id}")]
@@ -252,27 +248,6 @@ namespace AuthenticationApi.Controllers
 
             return StatusCode(StatusCodes.Status404NotFound, new ResponseModel { Status = "Error", Message = "User not found" });
         }
-
-
-
-
-
-        private JwtSecurityToken GetToken(List<Claim> authClaims)
-        {
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]!));
-
-            var token = new JwtSecurityToken(
-                issuer: configuration["JWT:ValidIssuer"],
-                audience: configuration["JWT:ValidateAudience"],
-                expires: DateTime.Now.AddHours(1),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-                );
-
-            return token;
-        }
-
-
 
 
     }

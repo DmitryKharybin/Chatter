@@ -1,5 +1,8 @@
 ﻿namespace AuthenticationApi.Controllers
 {
+
+    //This controller is responsible for retrieving user data
+    
     
     [Route("api/[controller]")]
     [ApiController]
@@ -16,21 +19,18 @@
         }
 
 
-    
-
 
         [HttpGet]
         [Route("[action]")]
         public async Task<ActionResult<User>> GetUserData([FromHeader] string authorization)
         {
+
             string inputToken = authorization.Replace("Bearer", "");
             inputToken = inputToken.Replace(" ", "");
             var tokenHandler = new JwtSecurityTokenHandler();
 
             try
             {
-
-
 
                 var jwtToken = jwtService.ValidateToken(inputToken);
 
@@ -41,7 +41,8 @@
                     return Problem("Missing user identification","UerId",500);
                 }
 
-                return await userDataRepository.GetUserData(userId);
+                var user = await userDataRepository.GetUserDataAsync(userId);
+                return user!;
 
             }
             // For now , i want to show exception in console, in future will pass to logging , and custom messages 
