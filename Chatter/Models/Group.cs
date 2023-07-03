@@ -11,7 +11,7 @@ namespace AuthenticationApi.Models
 
         public required string Description { get; set; }
 
-        public string? Image { get; set; }
+        public byte[]? Image { get; set; }
 
         //public virtual IEnumerable<User>? Users { get; set; }
         public virtual ICollection<GroupUser>? Users { get; set; }

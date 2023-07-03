@@ -9,6 +9,7 @@
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<Group> Groups { get; set; }
         public virtual DbSet<Post> Posts { get; set; }
+        public virtual DbSet<Comment> Comments { get; set; }
         public virtual DbSet<GroupCreator> GroupCreators { get; set; }
         public virtual DbSet<GroupUser> GroupUsers { get; set; }
 
@@ -35,21 +36,34 @@
                        .HasForeignKey(p => p.UserId)
                        .OnDelete(DeleteBehavior.ClientSetNull);
 
+            modelBuilder.Entity<Post>().HasData(
+                new
+                {
+                    Id = 1,
+                    Description = "Hello EveryOne, How are you all doing ?",
+                    PublishDate = DateTime.Now,
+                    UserId = "c7b013f0-5201-4317-abd8-c211f91b7330"
+                });
+                
+
 
             modelBuilder.Entity<User>().HasData(
                   new
                   {
                       Id = "0f8fad5b-d9cb-469f-a165-70867728950e",
                       Name = "John",
+                      Gender = Gender.Male,
                       Email = "fakeAdmin@mail.com",
-                      Image = ""
+                     
+                     
                   },
                    new
                    {
                        Id = "c7b013f0-5201-4317-abd8-c211f91b7330",
                        Name = "Jim",
+                       Gender = Gender.Male,
                        Email = "fakeUser@mail.com",
-                       Image = ""
+                       
                    }
                 );
 

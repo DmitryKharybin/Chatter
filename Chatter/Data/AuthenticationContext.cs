@@ -32,7 +32,7 @@
                       Id = "c7b013f0-5201-4317-abd8-c211f91b7330",
                       UserName = "user",
                       NormalizedUserName = "User",
-                      PasswordHash = new PasswordHasher<IdentityUser>().HashPassword(null, "Aa1!234567"),
+                      PasswordHash = new PasswordHasher<IdentityUser>().HashPassword(null, "#HelloWorld2023"),
                   }
                 );
         }

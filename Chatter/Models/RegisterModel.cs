@@ -10,6 +10,9 @@ namespace AuthenticationApi.Models
         public required string Name { get; set; }
 
         [Required(ErrorMessage = "User Name is required")]
+        public Gender Gender { get; set; }
+
+        [Required(ErrorMessage = "User Name is required")]
         public required string UserName { get; set; }
 
         [Required(ErrorMessage = "Password is required")]

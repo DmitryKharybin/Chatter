@@ -11,14 +11,19 @@ namespace AuthenticationApi.Models
 
         public required string Name { get; set; }
 
+        public Gender Gender { get; set; }
+
         public required string Email { get; set; }
 
-        public string? Image { get; set; }
+        public byte[]? Image { get; set; }
 
+        
+
+        public virtual ICollection<User>? Friends { get; set; }
         public virtual ICollection<Post>? Posts { get; set; }
         public virtual ICollection<GroupUser>? Groups { get; set; }
-        //public virtual IEnumerable<Group>? Group { get; set; }
 
+        public virtual IEnumerable<Comment>? Comments { get; set; }
 
     }
 }

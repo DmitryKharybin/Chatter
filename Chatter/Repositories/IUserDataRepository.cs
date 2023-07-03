@@ -2,11 +2,21 @@
 {
     public interface IUserDataRepository
     {
-        Task CreateNewUserAsync(User user);
+        Task AddUserAsync(User user);
 
-        Task<User?> GetUserDataAsync(string userId);
+        Task<User?> GetUserAsync(string userId);
 
-        Task<bool> ModifyUserDataAsync(User user);
+        Task<bool> DeleteUserAsync(string userId);
+
+        Task AddPostAsync(Post post);
+
+        Task<bool> AddFriendAsync(User user, string friendId);
+
+        Task<bool> UpdateUserAsync(User user);
+
+        Task AddGroupAsync(Group group);
+
+        Task<bool> UpdateGroupAsync(Group group);
 
         //There could be multiple groups with same name
         Task<IEnumerable<Group>> GetGroupsByNameAsync(string groupName);
@@ -14,6 +24,5 @@
         //User id is guid , therefore string
         Task<IEnumerable<Post>> GetPostsByUserIdAsync(string userId);
 
-        Task<IEnumerable<Post>> GetPostsByGroupIdAsync(int groupId);
     }
 }

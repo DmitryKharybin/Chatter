@@ -2,21 +2,13 @@
 
 namespace AuthenticationApi.Models
 {
-    public class Post
+    public class Comment
     {
         public int Id { get; set; }
 
-
         public required string Description { get; set; }
 
-        //Foreign key (Group table PK)
-        [ForeignKey(nameof(GroupId))]
-        public virtual Group? Group { get; set; }
-        [Column("Posted In")]
-        public int? GroupId { get; set; }
-
-        [Column("Publish Date")]
-        public DateTime PublishDate { get; set; }
+        public int MyProperty { get; set; }
 
         //Foreign key (User table PK)
         [ForeignKey(nameof(UserId))]
@@ -24,7 +16,10 @@ namespace AuthenticationApi.Models
         [Column("User Id")]
         public required string UserId { get; set; }
 
-        public virtual IEnumerable<Comment>? Comments { get; set; }
-
+        //Foreign key (Post table PK)
+        [ForeignKey(nameof(PostId))]
+        public virtual Post? Post { get; set; }
+        [Column("Post Id")]
+        public required int PostId { get; set; }
     }
 }

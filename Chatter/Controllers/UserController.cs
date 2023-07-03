@@ -8,7 +8,6 @@ namespace AuthenticationApi.Controllers
     {
         private readonly UserManager<IdentityUser> userManager;
         private readonly RoleManager<IdentityRole> roleManager;
-        private readonly SignInManager<IdentityUser> signInManager;
 
 
         private readonly IUserDataRepository userDataRepository;
@@ -17,12 +16,11 @@ namespace AuthenticationApi.Controllers
 
 
         public UserController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager
-            , SignInManager<IdentityUser> signInManager,
-            IUserDataRepository userDataRepository, IJwtService jwtService)
+            , IUserDataRepository userDataRepository, IJwtService jwtService)
+
         {
             this.userManager = userManager;
             this.roleManager = roleManager;
-            this.signInManager = signInManager;
             this.userDataRepository = userDataRepository;
             this.jwtService = jwtService;
 
@@ -45,31 +43,31 @@ namespace AuthenticationApi.Controllers
             //Validation of the login model
             if (ModelState.IsValid)
             {
-                    //First check if account name exist , then if it does , check if password match.
-                    var user = await userManager.FindByNameAsync(model.UserName);
+                //First check if account name exist , then if it does , check if password match.
+                var user = await userManager.FindByNameAsync(model.UserName);
 
 
-                    if (user != null && await userManager.CheckPasswordAsync(user, model.Password))
-             
-                    {
-                        var userRoles = await userManager.GetRolesAsync(user);
+                if (user != null && await userManager.CheckPasswordAsync(user, model.Password))
 
-                        var authClaims = new List<Claim>
+                {
+                    var userRoles = await userManager.GetRolesAsync(user);
+
+                    var authClaims = new List<Claim>
                          {
                             new Claim(ClaimTypes.Name, user.UserName!),
                             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                             new Claim("userId", user.Id)
                          };
 
-                        authClaims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
+                    authClaims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-                        //Generate a Json Web Token
-                        var token = jwtService.GenerateToken(authClaims);
+                    //Generate a Json Web Token
+                    var token = jwtService.GenerateToken(authClaims);
 
 
-                        return Ok(new JwtSecurityTokenHandler().WriteToken(token));
+                    return Ok(new JwtSecurityTokenHandler().WriteToken(token));
 
-                    }
+                }
             }
 
             return Unauthorized();
@@ -79,7 +77,7 @@ namespace AuthenticationApi.Controllers
 
 
         //Register a user with provided input information 
-        
+
         [HttpPost]
         [Route("[action]")]
         public async Task<IActionResult> RegisterUser([FromBody] RegisterModel model)
@@ -124,9 +122,7 @@ namespace AuthenticationApi.Controllers
 
             if (!createUserRes.Succeeded)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = createUserRes.Errors.ToString() });
-                //return Problem("Email already in use", "Registration", 500);
-
+                return Problem("Faild to Create User", "User Creation", 500);
             }
 
 
@@ -139,13 +135,12 @@ namespace AuthenticationApi.Controllers
 
             if (!addToRoleRes.Succeeded)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = addToRoleRes.Errors.ToString() });
-                //return Problem("Email already in use", "Registration", 500);
+                return Problem("Failed to add user to role : User", "Role asigning", 500);
 
             }
 
 
-            await userDataRepository.CreateNewUser(new User { Id = model.Id.ToString()!, Email = model.Email, Name = model.Name });
+            await userDataRepository.AddUserAsync(new User { Id = model.Id.ToString()!, Email = model.Email, Name = model.Name, Gender = model.Gender });
 
             return StatusCode(StatusCodes.Status201Created);
 
@@ -160,7 +155,7 @@ namespace AuthenticationApi.Controllers
 
             if (!ModelState.IsValid)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "User Registration faild, Check your input and try again" });
+                return Problem("Input Faild validation", "Input invalid", 500);
             }
 
             //Look for user matching name
@@ -168,14 +163,14 @@ namespace AuthenticationApi.Controllers
 
             if (user != null)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "User already exist" });
+                return Problem("User already in use", "User name duplication", 500);
             }
 
             var email = await userManager.FindByEmailAsync(model.Email);
 
             if (email != null)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "Email already in use" });
+                return Problem("Mail already in use", "Mail duplication", 500);
             }
 
             //Generate user a new Guid id
@@ -195,7 +190,7 @@ namespace AuthenticationApi.Controllers
 
             if (!createUserRes.Succeeded)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "Failed to Create User" });
+                return Problem("Faild to Create User", "User Creation", 500);
             }
 
 
@@ -208,10 +203,10 @@ namespace AuthenticationApi.Controllers
 
             if (!addToRoleRes.Succeeded)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = $"Faild to add user to role of Admin" });
+                return Problem("Failed to add user to role : Admin", "Role asigning", 500);
             }
 
-            await userDataRepository.CreateNewUser(new User { Id = model.Id.ToString()!, Email = model.Email, Name = model.Name });
+            await userDataRepository.AddUserAsync(new User { Id = model.Id.ToString()!, Email = model.Email, Name = model.Name, Gender = model.Gender });
 
 
             return StatusCode(StatusCodes.Status201Created);
@@ -222,33 +217,70 @@ namespace AuthenticationApi.Controllers
 
 
 
-        //Find user By Id 
+        //Find user By Id (Get id from token) , Delete user & user data
+        //If user not found , return internal error code 500 
+        //IF claim not found , return internal error code 500
+        //If user found , delete user (userManager) & delete user data (userDataRepository)
+        //If delete fail , return error 500 + message
         [HttpDelete]
         [Route("[action]/{id}")]
-        public async Task<IActionResult> DeleteUser(string id)
+        public async Task<IActionResult> DeleteUser([FromHeader] string authorization)
         {
 
-            var user = await userManager.FindByIdAsync(id);
+            string inputToken = authorization.Replace("Bearer", "");
+            inputToken = inputToken.Replace(" ", "");
+            var tokenHandler = new JwtSecurityTokenHandler();
 
-            if (user != null)
+            try
             {
-                var res = await userManager.DeleteAsync(user);
 
-                if (res.Succeeded)
+                var jwtToken = jwtService.ValidateToken(inputToken);
+
+                var userId = jwtToken.Claims.FirstOrDefault(claim => claim.Type == "userId")?.Value;
+
+                if (userId == null)
                 {
-                    return StatusCode(StatusCodes.Status200OK, new ResponseModel { Status = "Success", Message = "User Deleted Successfully" });
+                    return Problem("Missing user identification", "UerId", 500);
                 }
 
-                else
+                var user = await userManager.FindByIdAsync(userId);
+
+                if (user != null)
                 {
-                    return StatusCode(StatusCodes.Status500InternalServerError, new ResponseModel { Status = "Error", Message = "Faild to Delete user" });
+                    var userDelRes = await userManager.DeleteAsync(user);
+
+                    if (userDelRes.Succeeded)
+                    {
+                        var dataDelRes = await userDataRepository.DeleteUserAsync(userId);
+
+                        if (!dataDelRes)
+                        {
+                            return Problem("Faild to Delete user data", " User data Deletion", 500);
+                        }
+
+                        return StatusCode(StatusCodes.Status200OK, new ResponseModel { Status = "Success", Message = "User Deleted Successfully" });
+                    }
+
+                    else
+                    {
+                        return Problem("Faild to Delete user", "User Deletion", 500);
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return Problem("User not found", "User Deletion", 404);
 
+            }
 
-            return StatusCode(StatusCodes.Status404NotFound, new ResponseModel { Status = "Error", Message = "User not found" });
+            return Problem("User not found", "User Deletion", 404);
         }
 
 
+
     }
+
+
 }
+

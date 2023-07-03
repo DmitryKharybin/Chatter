@@ -19,7 +19,7 @@
         }
 
 
-
+        //Receive token from header , validate it , extract userId , get user from DB , return user
         [HttpGet]
         [Route("[action]")]
         public async Task<ActionResult<User>> GetUserData([FromHeader] string authorization)
@@ -41,11 +41,12 @@
                     return Problem("Missing user identification","UerId",500);
                 }
 
-                var user = await userDataRepository.GetUserDataAsync(userId);
+                var user = await userDataRepository.GetUserAsync(userId);
                 return user!;
 
             }
             // For now , i want to show exception in console, in future will pass to logging , and custom messages 
+            //TODO : add logger
             catch (Exception ex)
             {
 

@@ -1,3 +1,6 @@
+using Microsoft.Extensions.DependencyInjection;
+
+
 var builder = WebApplication.CreateBuilder(args);
 ConfigurationManager configuration = builder.Configuration;
 
@@ -9,14 +12,29 @@ j.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
 
 
-//builder.Services.AddEndpointsApiExplorer(); //?? Need to research
+builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(identity =>
 {
     identity.Password.RequiredLength = 8;
 }).AddEntityFrameworkStores<AuthenticationContext>().AddDefaultTokenProviders();
 
+
+
 builder.Services.AddScoped<IJwtService, JwtService>();
+
+//Dynamically add services that implement the generic IFileUpload interface.
+System.Reflection.Assembly.GetExecutingAssembly()
+          .GetTypes()
+          .Where(item => item.GetInterfaces()
+          .Where(i => i.IsGenericType).Any(i => i.GetGenericTypeDefinition() == typeof(IFileUpload<>)) && !item.IsAbstract && !item.IsInterface)
+          .ToList()
+          .ForEach(assignedTypes =>
+          {
+              var serviceType = assignedTypes.GetInterfaces().First(i => i.GetGenericTypeDefinition() == typeof(IFileUpload<>));
+              builder.Services.AddScoped(serviceType, assignedTypes);
+          });
+
 
 // Add Authentication
 builder.Services.AddAuthentication(options =>
@@ -33,14 +51,13 @@ builder.Services.AddAuthentication(options =>
     options.RequireHttpsMetadata = false;
     options.TokenValidationParameters = new TokenValidationParameters()
     {
-        //TODO: after settting the client (React), Add Audience & Issuer to it
-        ValidateIssuer = false,
-        ValidateAudience = false,
+        ValidateIssuer = true,
+        ValidateAudience = true,
         ValidAudience = configuration["JWT:ValidAudience"],
         ValidIssuer = configuration["JWT:ValidIssuer"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]!))
 
-        
+
     };
 });
 
@@ -62,7 +79,6 @@ option.UseLazyLoadingProxies().UseSqlServer(builder.Configuration.GetConnectionS
 var app = builder.Build();
 
 
-
 //During development , both data bases (user data & authentication) be deleted and recreated 
 //Cors are open to all during development
 
@@ -73,22 +89,21 @@ if (app.Environment.IsDevelopment())
         var authenticationContext = scope.ServiceProvider.GetRequiredService<AuthenticationContext>();
 
 
-        authenticationContext.Database.EnsureDeleted();
+        //authenticationContext.Database.EnsureDeleted();
         authenticationContext.Database.EnsureCreated();
 
         var userDataContext = scope.ServiceProvider.GetRequiredService<UserDataContext>();
 
-        userDataContext.Database.EnsureDeleted();
+        //userDataContext.Database.EnsureDeleted();
         userDataContext.Database.EnsureCreated();
     }
 
 
 
     app.UseCors(x => x
-                   .AllowAnyMethod()
-                   .AllowAnyHeader()
-                   .SetIsOriginAllowed(origin => true) // allow any origin
-                   .AllowCredentials()); // allow credentials
+               .AllowAnyMethod()
+               .AllowAnyHeader()
+               .AllowAnyOrigin());
 }
 
 //In production , check that both data bases , exist
