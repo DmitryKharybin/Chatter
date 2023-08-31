@@ -12,17 +12,19 @@ namespace AuthenticationApi.Controllers
 
         private readonly IUserDataRepository userDataRepository;
         private readonly IJwtService jwtService;
+        private readonly Microsoft.AspNetCore.Hosting.IHostingEnvironment env;
 
 
 
         public UserController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager
-            , IUserDataRepository userDataRepository, IJwtService jwtService)
+            , IUserDataRepository userDataRepository, IJwtService jwtService, Microsoft.AspNetCore.Hosting.IHostingEnvironment env)
 
         {
             this.userManager = userManager;
             this.roleManager = roleManager;
             this.userDataRepository = userDataRepository;
             this.jwtService = jwtService;
+            this.env = env;
 
         }
 
@@ -138,12 +140,33 @@ namespace AuthenticationApi.Controllers
                 return Problem("Failed to add user to role : User", "Role asigning", 500);
 
             }
-
-
-            await userDataRepository.AddUserAsync(new User { Id = model.Id.ToString()!, Email = model.Email, Name = model.Name, Gender = model.Gender });
+            //Get default image as bit array
+            var image = DefaultImageToByeArr();
+            await userDataRepository.AddUserAsync(new User { Id = model.Id.ToString()!, Email = model.Email, Name = model.Name, Gender = model.Gender, Image = image });
 
             return StatusCode(StatusCodes.Status201Created);
 
+        }
+
+        //Turn image into a bit array 
+        private byte[] DefaultImageToByeArr()
+        {
+            string defaultImagePath = Path.Combine(env.WebRootPath,"Pictures", "DefaultAvatar.png");
+            byte[] imageBytes;
+
+            using (FileStream fileStream = new FileStream(defaultImagePath, FileMode.Open, FileAccess.Read))
+            {
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    fileStream.CopyTo(memoryStream);
+
+                    imageBytes = memoryStream.ToArray();
+                }
+            }
+
+            //System.IO.File.ReadAllBytes(defaultImagePath);
+
+            return imageBytes;
         }
 
 

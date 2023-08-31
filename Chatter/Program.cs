@@ -1,8 +1,11 @@
+using AuthenticationApi.Hubs;
 using Microsoft.Extensions.DependencyInjection;
 
 
 var builder = WebApplication.CreateBuilder(args);
 ConfigurationManager configuration = builder.Configuration;
+
+builder.Services.AddSignalR();
 
 //User Data repository
 builder.Services.AddScoped<IUserDataRepository, UserDataRepository>();
@@ -10,7 +13,7 @@ builder.Services.AddScoped<IUserDataRepository, UserDataRepository>();
 builder.Services.AddControllers().AddJsonOptions(j =>
 j.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
-
+builder.Services.AddSingleton<IFileHolder, HubStorage>();
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -51,8 +54,8 @@ builder.Services.AddAuthentication(options =>
     options.RequireHttpsMetadata = false;
     options.TokenValidationParameters = new TokenValidationParameters()
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
+        ValidateIssuer = false,
+        ValidateAudience = false,
         ValidAudience = configuration["JWT:ValidAudience"],
         ValidIssuer = configuration["JWT:ValidIssuer"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:Secret"]!))
@@ -89,21 +92,22 @@ if (app.Environment.IsDevelopment())
         var authenticationContext = scope.ServiceProvider.GetRequiredService<AuthenticationContext>();
 
 
-        //authenticationContext.Database.EnsureDeleted();
+        authenticationContext.Database.EnsureDeleted();
         authenticationContext.Database.EnsureCreated();
 
         var userDataContext = scope.ServiceProvider.GetRequiredService<UserDataContext>();
 
-        //userDataContext.Database.EnsureDeleted();
+        userDataContext.Database.EnsureDeleted();
         userDataContext.Database.EnsureCreated();
     }
 
 
 
     app.UseCors(x => x
+               .WithOrigins("http://localhost:5173")
                .AllowAnyMethod()
                .AllowAnyHeader()
-               .AllowAnyOrigin());
+               .AllowCredentials());
 }
 
 //In production , check that both data bases , exist
@@ -124,12 +128,18 @@ else
 }
 
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+
+
+app.MapHub<ChatterHub>("/ChatterHub");
+
+
 
 app.MapControllers();
 

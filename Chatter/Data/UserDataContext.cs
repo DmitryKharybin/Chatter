@@ -2,16 +2,23 @@
 {
     public class UserDataContext : DbContext
     {
-        public UserDataContext(DbContextOptions options) : base(options)
+
+        private readonly Microsoft.AspNetCore.Hosting.IHostingEnvironment env;
+
+
+        public UserDataContext(DbContextOptions options, Microsoft.AspNetCore.Hosting.IHostingEnvironment env) : base(options)
         {
+            this.env = env;
         }
 
         public virtual DbSet<User> Users { get; set; }
+        public virtual DbSet<FriendRequest> FriendRequests { get; set; }
         public virtual DbSet<Group> Groups { get; set; }
         public virtual DbSet<Post> Posts { get; set; }
         public virtual DbSet<Comment> Comments { get; set; }
         public virtual DbSet<GroupCreator> GroupCreators { get; set; }
         public virtual DbSet<GroupUser> GroupUsers { get; set; }
+        public virtual DbSet<Message> Messages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -29,6 +36,30 @@
                    .HasForeignKey(g => g.UserId)
                    .OnDelete(DeleteBehavior.ClientSetNull);
 
+            modelBuilder.Entity<FriendRequest>()
+                .HasOne(u => u.Receiver)
+                .WithMany(f => f.FriendRequests)
+                .HasForeignKey(k => k.ReceiverId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+
+            //modelBuilder.Entity<FriendRequest>()
+            //    .HasOne(u => u.Sender)
+            //    .WithOne(f => f.SentRequest)
+            //    .HasForeignKey<FriendRequest>(f => f.SenderId)
+            //    .OnDelete(DeleteBehavior.ClientSetNull);
+
+
+            modelBuilder.Entity<Message>()
+                .HasOne(u => u.Receiver)
+                .WithMany(s => s.ReceivedMessages)
+                .HasForeignKey(k => k.ReceiverId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+
+            modelBuilder.Entity<Message>()
+               .HasOne(u => u.Sender)
+               .WithMany(s => s.SentMessages)
+               .HasForeignKey(k => k.SenderId)
+               .OnDelete(DeleteBehavior.ClientSetNull);
 
             modelBuilder.Entity<Post>()
                        .HasOne(p => p.User)
@@ -44,7 +75,7 @@
                     PublishDate = DateTime.Now,
                     UserId = "c7b013f0-5201-4317-abd8-c211f91b7330"
                 });
-                
+
 
 
             modelBuilder.Entity<User>().HasData(
@@ -54,8 +85,9 @@
                       Name = "John",
                       Gender = Gender.Male,
                       Email = "fakeAdmin@mail.com",
-                     
-                     
+                      Image = SeedImageToByeArr("user1.jpg")
+
+
                   },
                    new
                    {
@@ -63,17 +95,33 @@
                        Name = "Jim",
                        Gender = Gender.Male,
                        Email = "fakeUser@mail.com",
-                       
+                       Image = SeedImageToByeArr("user2.jpg")
+
                    }
                 );
 
 
+        }
+
+        //Create image byte array for image seed
+        private byte[] SeedImageToByeArr(string imageName)
+        {
+            string defaultImagePath = Path.Combine(env.WebRootPath, "Pictures", imageName);
+            byte[] imageBytes;
+
+            using (FileStream fileStream = new FileStream(defaultImagePath, FileMode.Open, FileAccess.Read))
+            {
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    fileStream.CopyTo(memoryStream);
+
+                    imageBytes = memoryStream.ToArray();
+                }
+            }
 
 
-
-
-
+            return imageBytes;
         }
 
     }
-}
+    }

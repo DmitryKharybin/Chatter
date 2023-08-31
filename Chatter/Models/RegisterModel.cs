@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-
+﻿
 namespace AuthenticationApi.Models
 {
     public class RegisterModel
@@ -10,7 +9,7 @@ namespace AuthenticationApi.Models
         public required string Name { get; set; }
 
         [Required(ErrorMessage = "User Name is required")]
-        public Gender Gender { get; set; }
+        public required Gender Gender { get; set; }
 
         [Required(ErrorMessage = "User Name is required")]
         public required string UserName { get; set; }

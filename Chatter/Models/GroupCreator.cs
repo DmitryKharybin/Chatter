@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-
+﻿
 namespace AuthenticationApi.Models
 {
     public class GroupCreator

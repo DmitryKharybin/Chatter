@@ -8,6 +8,9 @@ global using Microsoft.AspNetCore.Identity;
 global using Microsoft.IdentityModel.Tokens;
 global using System.IdentityModel.Tokens.Jwt;
 
+global using System.ComponentModel.DataAnnotations.Schema;
+global using System.ComponentModel.DataAnnotations;
+
 global using AuthenticationApi.Models;
 global using System.Security.Claims;
 global using System.Text;
@@ -21,5 +24,9 @@ global using Newtonsoft.Json;
 global using System.Net;
 
 global using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+global using System.Drawing;
+
+global using Microsoft.AspNetCore.SignalR;
 
 
