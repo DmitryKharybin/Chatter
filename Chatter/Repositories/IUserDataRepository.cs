@@ -24,14 +24,19 @@ namespace AuthenticationApi.Repositories
 
         Task<bool> UpdateUserAsync(User user);
 
+        Task<Message> GetMessageByIdAsync(string messageId);
 
-        Task<bool> AddMessageAsync(string senderId, string receiverId, string messageBody);
+        Task MarkMessageAsRead(Message message);
+
+        Task<bool> AddMessageAsync(string id, string senderId, string receiverId, string messageBody);
 
         //Get all chats the user have
         Task<IEnumerable<Message>> GetAllUserChatsAsync(string userId);
 
+        Task<IEnumerable<User>> GetAllChatParticipants(string userId);
+
         //Get chat with specific user
-        Task<IEnumerable<Message>> GetChatByUserIdAsync(string userId ,string receiverId);
+        Task<IEnumerable<Message>> GetChatByUserIdAsync(string userId, string receiverId);
 
 
         Task<IEnumerable<User>> GetFriends(string userId);

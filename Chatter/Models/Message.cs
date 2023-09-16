@@ -2,11 +2,13 @@
 {
     public class Message
     {
-        public int Id { get; set; }
+        public required string Id { get; set; }
 
 
         [ForeignKey(nameof(ReceiverId))]
         public virtual User? Receiver { get; set; }
+
+        public bool IsRead { get; set; }
 
         [Column("Receiver Id")]
         public required string ReceiverId { get; set; }
@@ -19,7 +21,7 @@
         public required string SenderId { get; set; }
 
 
-        public required DateTime Date { get; set; }
+        public  DateTime? Date { get; set; }
 
         public required string Body { get; set; }
     }

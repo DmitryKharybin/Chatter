@@ -1,5 +1,6 @@
 ﻿using AuthenticationApi.Models;
 using Azure.Core;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
@@ -230,10 +231,7 @@ namespace AuthenticationApi.Repositories
 
         public async Task<User?> GetUserAsync(string userId)
         {
-
             return await userDataContext.Users.SingleOrDefaultAsync(user => user.Id == userId);
-
-
         }
 
         //Meant to get all users who's name contain certain string
@@ -282,7 +280,19 @@ namespace AuthenticationApi.Repositories
         //Return list of friend requests for user
         public async Task<IEnumerable<FriendRequest>> GetFriendRequestByUserId(string userId)
         {
-            return await userDataContext.FriendRequests.Where(r => r.ReceiverId == userId).ToListAsync();
+            return await userDataContext.FriendRequests.Where(r => r.ReceiverId == userId).Select(r => new FriendRequest
+            {
+                Id = r.Id,
+                Date = r.Date,
+                ReceiverId = r.ReceiverId,
+                SenderId = r.SenderId,
+                Sender = new User()
+                {
+                    Id = userId,
+                    Name = r.Sender.Name,
+                    Image = r.Sender.Image
+                }
+            }).ToListAsync();
         }
 
         public async Task<IEnumerable<User>> GetFriends(string userId)
@@ -300,16 +310,25 @@ namespace AuthenticationApi.Repositories
             return null;
         }
 
-        public async Task<bool> AddMessageAsync(string senderId, string receiverId, string messageBody)
+        public async Task<bool> AddMessageAsync(string id, string senderId, string receiverId, string messageBody)
         {
-            if (senderId != null || receiverId != null)
+            if ((senderId != null || receiverId != null) && messageBody != string.Empty)
             {
-
-                var duplicateMessage = userDataContext.Messages.AsNoTracking().Where(r => r.SenderId == senderId && r.ReceiverId == receiverId).FirstOrDefault();
+                var duplicateMessage = userDataContext.Messages.AsNoTracking().Where(r => r.Id == id).FirstOrDefault();
 
                 if (duplicateMessage == null)
                 {
-                    userDataContext.Messages.Add(new Message { SenderId = senderId, ReceiverId = receiverId, Date = DateTime.Now, Body = messageBody });
+                    //userDataContext.Messages.Add(new Message { Id = id, SenderId = senderId, ReceiverId = receiverId, Date = DateTime.Now, Body = messageBody});
+
+                    var receiver = userDataContext.Users.FirstOrDefault(u => u.Id == receiverId);
+                    var sender = userDataContext.Users.FirstOrDefault(u => u.Id == senderId);
+
+                    if (receiver != null && sender != null)
+                    {
+                        Message message = new Message { Id = id, SenderId = senderId, ReceiverId = receiverId, Date = DateTime.Now, Body = messageBody, IsRead = false };
+                        receiver.ReceivedMessages.Add(message);
+                        sender.SentMessages.Add(message);
+                    }
 
                     return await userDataContext.SaveChangesAsync() > 0;
                 }
@@ -328,17 +347,73 @@ namespace AuthenticationApi.Repositories
 
             return null;
         }
-      
+
+        //Get All participants of existing chats with user
+        public async Task<IEnumerable<User>> GetAllChatParticipants(string userId)
+        {
+            List<string> userIdCollection = new List<string>();
+            
+
+            var user = await userDataContext.Users.Where(u => u.Id == userId).SingleOrDefaultAsync();
+            if (user != null)
+            {
+                var receiverIdCollection = user.SentMessages?.Select(m => m.ReceiverId).ToList();
+                var senderIdCollection = user.ReceivedMessages?.Select(m => m.SenderId).ToList();
+
+                userIdCollection.AddRange(receiverIdCollection);
+                userIdCollection.AddRange(senderIdCollection);
+
+                userIdCollection = userIdCollection.Distinct().ToList();
+
+                return userDataContext.Users.Where(u => userIdCollection.Contains(u.Id))
+                    .Select(u => new User
+                    {
+                        Id = u.Id,
+                        Name = u.Name,
+                        Image = u.Image,
+                        Email = u.Email,
+                    }).ToList();
+            }
+
+            return null;
+        }
+
         //Get all messages in specific chat
         public async Task<IEnumerable<Message>> GetChatByUserIdAsync(string userId, string secondUserId)
         {
             if (userId != null && secondUserId != null)
             {
+                //return await userDataContext.Messages.Where(r => (r.ReceiverId == userId && r.SenderId == secondUserId) ||
+                //(r.ReceiverId == secondUserId && r.SenderId == userId)).ToListAsync();
+
                 return await userDataContext.Messages.Where(r => (r.ReceiverId == userId && r.SenderId == secondUserId) ||
-                (r.ReceiverId == secondUserId && r.SenderId == userId)).ToListAsync();
+                (r.ReceiverId == secondUserId && r.SenderId == userId)).Select(m => new Message
+                {
+                    Id = m.Id,
+                    ReceiverId = m.ReceiverId,
+                    SenderId = m.SenderId,
+                    Body = m.Body,
+                    IsRead = m.IsRead,
+                    Date = m.Date,
+                }).OrderBy(m => m.Date)
+                .ToListAsync();
             }
 
             return null;
+        }
+
+
+        //Mark the message as read
+        public async Task MarkMessageAsRead(Message message)
+        {
+            message.IsRead = true;
+
+            await userDataContext.SaveChangesAsync();
+        }
+
+        public async Task<Message> GetMessageByIdAsync(string messageId)
+        {
+            return await userDataContext.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
         }
     }
 }

@@ -52,6 +52,7 @@ namespace AuthenticationApi.Controllers
                 if (user != null && await userManager.CheckPasswordAsync(user, model.Password))
 
                 {
+
                     var userRoles = await userManager.GetRolesAsync(user);
 
                     var authClaims = new List<Claim>

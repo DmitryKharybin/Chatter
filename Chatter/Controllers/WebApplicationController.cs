@@ -104,45 +104,48 @@ namespace AuthenticationApi.Controllers
         [Route("[action]")]
         public async Task<ActionResult<SearchResult>> AcceptFriendRequest([FromHeader] string authorization, [FromBody] FriendRequest request)
         {
-
-
-            string inputToken = RemoveBearerHelper(authorization);
-
-            try
+            if (ModelState.IsValid)
             {
 
-                var user = await GetUserHelper(inputToken);
-                if (user == null)
+                string inputToken = RemoveBearerHelper(authorization);
+
+                try
                 {
-                    return Problem("User not found", "user", 500);
+
+                    var user = await GetUserHelper(inputToken);
+                    if (user == null)
+                    {
+                        return Problem("User not found", "user", 500);
+                    }
+
+                    var res = await userDataRepository.AcceptFriendRequestAsync(request);
+
+                    if (!res)
+                    {
+                        return Problem("Somethig went wrong", "Add Friend", 500);
+                    }
+
+                    //Update both sender & receiver
+                    await chattterHub.Clients.Client(fileHolder.UsersConnections[request.ReceiverId]).SendAsync("RequestUpdate", "FriendRequestAccepted");
+                    await chattterHub.Clients.Client(fileHolder.UsersConnections[request.SenderId]).SendAsync("RequestUpdate", "FriendRequestAccepted");
+                    return Ok();
+
                 }
-
-                var res = await userDataRepository.AcceptFriendRequestAsync(request);
-
-                if (!res)
+                // For now , i want to show exception in console, in future will pass to logging , and custom messages 
+                //TODO : add logger
+                catch (SecurityTokenExpiredException)
                 {
-                    return Problem("Somethig went wrong", "Add Friend", 500);
+                    return Problem("Token expired", "Token", 500);
                 }
+                catch (Exception ex)
+                {
 
-                //Update both sender & receiver
-                await chattterHub.Clients.Client(fileHolder.UsersConnections[request.ReceiverId]).SendAsync("RequestUpdate", "FriendRequestAccepted");
-                await chattterHub.Clients.Client(fileHolder.UsersConnections[request.SenderId]).SendAsync("RequestUpdate", "FriendRequestAccepted");
-                return Ok();
-
-            }
-            // For now , i want to show exception in console, in future will pass to logging , and custom messages 
-            //TODO : add logger
-            catch (SecurityTokenExpiredException)
-            {
-                return Problem("Token expired", "Token", 500);
-            }
-            catch (Exception ex)
-            {
-
-                Console.WriteLine(ex.ToString());
-                return Problem("Invalid Token", "Token", 500);
+                    Console.WriteLine(ex.ToString());
+                    return Problem("Invalid Token", "Token", 500);
+                }
             }
 
+            return Problem("Request is incorrect, check all data is correct, and try again", "Accept friend request", 400);
         }
 
         [HttpPost]
@@ -151,18 +154,33 @@ namespace AuthenticationApi.Controllers
         public async Task<ActionResult<SearchResult>> DeleteFriendRequest([FromBody] FriendRequest request)
         {
 
-            var res = await userDataRepository.RemoveFriendRequestAsync(request);
-            Console.WriteLine(res);
-
-            if (res)
+            if (ModelState.IsValid)
             {
-                //Update both sender & receiver
-                await chattterHub.Clients.Client(fileHolder.UsersConnections[request.ReceiverId]).SendAsync("RequestUpdate", "FriendRequestDeleted");
-                await chattterHub.Clients.Client(fileHolder.UsersConnections[request.SenderId]).SendAsync("RequestUpdate", "FriendRequestDeleted");
-                return Ok();
+                try
+                {
+
+                    var res = await userDataRepository.RemoveFriendRequestAsync(request);
+                    Console.WriteLine(res);
+
+                    if (res)
+                    {
+                        //Update both sender & receiver
+                        await chattterHub.Clients.Client(fileHolder.UsersConnections[request.ReceiverId]).SendAsync("RequestUpdate", "FriendRequestDeleted");
+                        await chattterHub.Clients.Client(fileHolder.UsersConnections[request.SenderId]).SendAsync("RequestUpdate", "FriendRequestDeleted");
+                        return Ok();
+                    }
+
+                }
+
+                catch (KeyNotFoundException)
+                {
+                    Console.WriteLine("User connection id to hub not found in dictionary");
+                    return Problem("User connection id to hub not found in dictionary, refresh page", "User not found in hub regisrati", 500);
+                }
+
             }
 
-            return Problem("Something went wrong", "Delete friend request", 500);
+            return Problem("Request is incorrect, check all data is correct, and try again", "Delete friend request", 400);
 
         }
 
@@ -175,30 +193,43 @@ namespace AuthenticationApi.Controllers
 
             string inputToken = RemoveBearerHelper(authorization);
 
-            try
+            if (ModelState.IsValid)
             {
-                var user = await GetUserHelper(inputToken);
 
-                if (user == null)
+                try
                 {
-                    return Problem("User not found", "Friend Request creation", 404);
+                    var user = await GetUserHelper(inputToken);
+
+                    if (user == null)
+                    {
+                        return Problem("User not found", "Friend Request creation", 404);
+                    }
+
+                    bool res = await userDataRepository.CreateFriendRequestAsync(user.Id, targetUserId);
+
+                    if (res)
+                    {
+                        //Update both sender & receiver
+                        await chattterHub.Clients.Client(fileHolder.UsersConnections[targetUserId]).SendAsync("RequestUpdate", "NewFriendRequest");
+                        return Ok();
+                    }
+
+                    return Problem("Faild to create friend request", "Friend Request creation", 500);
+                }
+                catch (SecurityTokenExpiredException)
+                {
+                    return Problem("Token expired", "Token", 401);
                 }
 
-                bool res = await userDataRepository.CreateFriendRequestAsync(user.Id, targetUserId);
-
-                if (res)
+                catch (KeyNotFoundException)
                 {
-                    //Update both sender & receiver
-                    await chattterHub.Clients.Client(fileHolder.UsersConnections[targetUserId]).SendAsync("RequestUpdate", "NewFriendRequest");
-                    return Ok();
+                    Console.WriteLine("User connection id to hub not found in dictionary");
+                    return Problem("User connection id to hub not found in dictionary, refresh page", "User not found in hub regisration", 500);
                 }
 
-                return Problem("Faild to create friend request", "Friend Request creation", 500);
             }
-            catch (SecurityTokenExpiredException)
-            {
-                return Problem("Token expired", "Token", 401);
-            }
+
+            return Problem("Data is missing, check all headers and try again", "Headers missing", 400);
 
         }
 
@@ -206,34 +237,130 @@ namespace AuthenticationApi.Controllers
         [HttpPost]
         [Authorize]
         [Route("[action]")]
-        public async Task<IActionResult> SendMessage([FromHeader] Message message)
+        public async Task<IActionResult> SendMessage([FromBody] Message message)
         {
-
-            if (message != null)
+            try
             {
 
-                bool res = await userDataRepository.AddMessageAsync(message.SenderId, message.ReceiverId, message.Body);
-
-                if (res)
+                if (message != null)
                 {
-                    //Update receiving user on message
-                    await chattterHub.Clients.Client(fileHolder.UsersConnections[message.ReceiverId]).SendAsync("newMessage", message.SenderId);
-                    return Ok();
+                    if (ModelState.IsValid)
+                    {
+                        bool res = await userDataRepository.AddMessageAsync(message.Id, message.SenderId, message.ReceiverId, message.Body);
+
+
+                        if (res)
+                        {
+                            var sender = await userDataRepository.GetUserAsync(message.SenderId);
+
+                            if (sender != null)
+                            {
+                                message.Sender = new User { Id = sender.Id, Name = sender.Name, Image = sender.Image };
+
+                                //Update receiving user on message
+                                await chattterHub.Clients.Client(fileHolder.UsersConnections[message.ReceiverId]).SendAsync("newMessage", message);
+                                return Ok();
+                            }
+
+                        }
+
+                    }
+
                 }
 
+            }
+
+            catch (KeyNotFoundException)
+            {
+                Console.WriteLine("User connection id to hub not found in dictionary");
+                return Ok();
             }
 
             return Problem("Fail to add message", "Message", 500);
 
         }
 
+        [HttpPost]
+        [Authorize]
+        [Route("[action]")]
+        public async Task<IActionResult> MarkMessageAsRead([FromBody] string[] messageIdArr)
+        {
+            if (messageIdArr != null)
+            {
+                List<Message> messageList = new List<Message>();
+                //var message = await userDataRepository.GetMessageByIdAsync(messageId);
 
-        //TODO : Finish user chats actions
+                foreach (string messageId in messageIdArr)
+                {
+                    messageList.Add(await userDataRepository.GetMessageByIdAsync(messageId));
+                }
+
+                if (messageList.Count > 0)
+                {
+                    foreach (var message in messageList)
+                    {
+                        await userDataRepository.MarkMessageAsRead(message);
+                    }
+                    return Ok();
+                    //await userDataRepository.MarkMessageAsRead(message);
+                }
+                else
+                {
+                    return Problem("Message was not found", "Retrieve message", 404);
+                }
+            }
+
+            return Problem("Incorrect or missing header", "Check header", 400);
+
+        }
+
+
+        //Get chat with specific user
         [HttpGet]
         [Authorize]
         [Route("[action]")]
-        //Get Friends
-        public async Task<ActionResult<IEnumerable<Message>>> GetUserChat([FromHeader] string authorization)
+        public async Task<ActionResult<IEnumerable<Message>>> GetUserChat([FromHeader] string authorization, [FromHeader] string secondParticipantId)
+        {
+            string inputToken = RemoveBearerHelper(authorization);
+
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    var user = await GetUserHelper(inputToken);
+
+                    if (user == null)
+                    {
+                        return Problem("User not found", "Friend Request creation", 404);
+                    }
+
+                    var chatMessages = await userDataRepository.GetChatByUserIdAsync(user.Id, secondParticipantId);
+
+                    if (chatMessages == null)
+                    {
+                        return Problem("Chat not found", "Chat lookup", 404);
+                    }
+
+                    return chatMessages.ToList();
+
+                }
+                catch (SecurityTokenExpiredException)
+                {
+                    return Problem("Token expired", "Token", 401);
+                }
+
+            }
+
+            return Problem("Second participant data missing, check all data is valid , and try again", "Get chat", 400);
+
+        }
+
+
+        //Get All chats 
+        [HttpGet]
+        [Authorize]
+        [Route("[action]")]
+        public async Task<ActionResult<IEnumerable<Message>>> GetAllUserChats([FromHeader] string authorization)
         {
             string inputToken = RemoveBearerHelper(authorization);
 
@@ -245,20 +372,22 @@ namespace AuthenticationApi.Controllers
                 {
                     return Problem("User not found", "Friend Request creation", 404);
                 }
-                //TODO: filter special chars(just in case)
-                var requests = await userDataRepository.GetFriends(user.Id);
 
-                if (requests == null)
+                var chatMessages = await userDataRepository.GetAllUserChatsAsync(user.Id);
+
+                if (chatMessages == null)
                 {
-                    return Problem("Friend request not found", "Friend reqeust", 404);
+                    return Problem("No chats found", "Chat lookup", 404);
                 }
 
-                return requests.ToList();
+                return chatMessages.ToList();
+
             }
             catch (SecurityTokenExpiredException)
             {
                 return Problem("Token expired", "Token", 401);
             }
+
         }
 
 
@@ -319,6 +448,39 @@ namespace AuthenticationApi.Controllers
                 }
 
                 return requests.ToList();
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                return Problem("Token expired", "Token", 401);
+            }
+
+        }
+
+        //Get Friend reqeust, if not found return status 404 & error message
+        [HttpGet]
+        [Authorize]
+        [Route("[action]")]
+        public async Task<ActionResult<IEnumerable<User>>> GetChatParticipants([FromHeader] string authorization)
+        {
+            string inputToken = RemoveBearerHelper(authorization);
+
+            try
+            {
+                var user = await GetUserHelper(inputToken);
+
+                if (user == null)
+                {
+                    return Problem("User not found", "Friend Request creation", 404);
+                }
+                //TODO: filter special chars(just in case)
+                var chatParticipantsId = await userDataRepository.GetAllChatParticipants(user.Id);
+
+                if (chatParticipantsId == null)
+                {
+                    return Problem("Friend request not found", "Friend reqeust", 404);
+                }
+
+                return chatParticipantsId.ToList();
             }
             catch (SecurityTokenExpiredException)
             {

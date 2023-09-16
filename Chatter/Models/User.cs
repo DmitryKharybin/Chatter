@@ -13,13 +13,13 @@ namespace AuthenticationApi.Models
 
         public Gender Gender { get; set; }
 
-        public required string Email { get; set; }
+        public string? Email { get; set; }
 
         public byte[]? Image { get; set; }
 
 
         // A user can either send a request or have a collection of requests sent to him 
-       // public virtual FriendRequest? SentRequest { get; set; }
+        // public virtual FriendRequest? SentRequest { get; set; }
         public virtual ICollection<FriendRequest>? FriendRequests { get; set; }
         public virtual ICollection<Message>? ReceivedMessages { get; set; }
         public virtual ICollection<Message>? SentMessages { get; set; }
