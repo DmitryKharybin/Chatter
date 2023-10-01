@@ -13,7 +13,7 @@
 
         }
 
-        public async Task UploadFileAsync(Group group, IFormFile selectedFile)
+        public async Task<byte[]> UploadFileAsync(Group group, IFormFile selectedFile)
         {
 
             if (group != null && selectedFile != null && selectedFile.Length > 0)
@@ -24,8 +24,11 @@
                     group.Image = stream.ToArray();
                     await dataRepository.UpdateGroupAsync(group);
 
+                    return stream.ToArray();
                 }
             }
+
+            return null;
 
 
         }

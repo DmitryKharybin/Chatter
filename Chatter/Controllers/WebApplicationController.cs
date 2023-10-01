@@ -18,14 +18,16 @@ namespace AuthenticationApi.Controllers
         private readonly IJwtService jwtService;
         private readonly IHubContext<ChatterHub> chattterHub;
         private readonly IFileHolder fileHolder;
+        private readonly IFileUpload<User> userImageUpload;
 
         public WebApplicationController(IUserDataRepository userDataRepository, IJwtService jwtService, IHubContext<ChatterHub> chattterHub
-            , IFileHolder fileHolder)
+            , IFileHolder fileHolder, IFileUpload<User> userImageUpload)
         {
             this.userDataRepository = userDataRepository;
             this.jwtService = jwtService;
             this.chattterHub = chattterHub;
             this.fileHolder = fileHolder;
+            this.userImageUpload = userImageUpload;
         }
 
 
@@ -515,6 +517,92 @@ namespace AuthenticationApi.Controllers
             string inputToken = authHeader.Replace("Bearer", "");
             inputToken = inputToken.Replace(" ", "");
             return inputToken;
+        }
+
+
+        [HttpPost]
+        [Authorize]
+        [Route("[action]")]
+        public async Task<ActionResult> UpdateUserData([FromHeader] string authorization, [FromBody] User updatedUser)
+        {
+            string inputToken = RemoveBearerHelper(authorization);
+
+            if (ModelState.IsValid)
+            {
+                if (updatedUser.Name != string.Empty)
+                {
+                    try
+                    {
+                        var user = await GetUserHelper(inputToken);
+
+                        if (user == null)
+                        {
+                            return Problem("User not found", "Friend Request creation", 404);
+                        }
+
+                        //Updated user should have matching id to token to prevent update to wrong user
+                        if (user.Id != updatedUser.Id)
+                        {
+                            return Problem("User Id does not match token claim", "Token", 400);
+                        }
+
+                        user.Name = updatedUser.Name;
+                        user.Email = updatedUser.Email;
+
+                        var updateRes = await userDataRepository.UpdateUserAsync(user);
+
+                        if (!updateRes)
+                        {
+                            return Problem("faild to update user data", "update user data", 500);
+                        }
+
+                        return Ok();
+
+                    }
+                    catch (SecurityTokenExpiredException)
+                    {
+                        return Problem("Token expired", "Token", 401);
+                    }
+
+                }
+
+            }
+
+            return Problem("Second participant data missing, check all data is valid , and try again", "Get chat", 400);
+
+        }
+
+        [HttpPost]
+        [Authorize]
+        [Route("[action]")]
+        public async Task<ActionResult> UpdateUserImage([FromHeader] string authorization, [FromForm] IFormFile newImage)
+        {
+            string inputToken = RemoveBearerHelper(authorization);
+
+            try
+            {
+                var user = await GetUserHelper(inputToken);
+
+                if (user == null)
+                {
+                    return Problem("User not found", "Friend Request creation", 404);
+                }
+
+                var updateRes = await userImageUpload.UploadFileAsync(user, newImage);
+
+                if (updateRes == null)
+                {
+                    return Problem("faild to update user image", "update user image", 500);
+                }
+
+                return Ok(updateRes);
+
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                return Problem("Token expired", "Token", 401);
+            }
+
         }
 
 

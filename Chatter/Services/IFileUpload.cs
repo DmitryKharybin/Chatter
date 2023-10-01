@@ -4,7 +4,7 @@
     public interface IFileUpload<T>
     {
 
-        Task UploadFileAsync(T obj, IFormFile selectedFile);
+        Task<byte[]> UploadFileAsync(T obj, IFormFile selectedFile);
 
     }
      

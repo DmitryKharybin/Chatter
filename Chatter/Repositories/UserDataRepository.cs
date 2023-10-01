@@ -13,9 +13,7 @@ namespace AuthenticationApi.Repositories
 
         public UserDataRepository(UserDataContext userDataContext)
         {
-
             this.userDataContext = userDataContext;
-
         }
 
         //Add Friend & delete the request from DB
@@ -352,7 +350,7 @@ namespace AuthenticationApi.Repositories
         public async Task<IEnumerable<User>> GetAllChatParticipants(string userId)
         {
             List<string> userIdCollection = new List<string>();
-            
+
 
             var user = await userDataContext.Users.Where(u => u.Id == userId).SingleOrDefaultAsync();
             if (user != null)
